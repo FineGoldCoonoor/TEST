@@ -9,7 +9,6 @@ let earringSrc = '';
 let necklaceSrc = '';
 let lastSnapshotDataURL = '';
 
-let faceMeshResults = null;
 let smoothedLandmarks = null;
 
 function loadImage(src) {
@@ -78,23 +77,22 @@ faceMesh.setOptions({
 });
 
 faceMesh.onResults((results) => {
-  if (results.multiFaceLandmarks.length > 0) {
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
-    // Initialize smoothed landmarks if null
+
     if (!smoothedLandmarks) {
       smoothedLandmarks = landmarks.map(p => ({ x: p.x, y: p.y }));
     } else {
-      // Smoothly interpolate to new positions
-      const smoothingFactor = 0.5; // adjust between 0 (slow) - 1 (instant)
+      const smoothingFactor = 0.2; // lower is steadier
       for (let i = 0; i < landmarks.length; i++) {
         smoothedLandmarks[i].x = smoothedLandmarks[i].x * (1 - smoothingFactor) + landmarks[i].x * smoothingFactor;
         smoothedLandmarks[i].y = smoothedLandmarks[i].y * (1 - smoothingFactor) + landmarks[i].y * smoothingFactor;
       }
     }
-    faceMeshResults = results;
   }
-  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
+  // If no landmarks detected, keep previous smoothedLandmarks
   if (smoothedLandmarks) {
     drawJewelry(smoothedLandmarks, canvasCtx);
   }
