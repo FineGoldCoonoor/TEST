@@ -9,7 +9,8 @@ let earringSrc = '';
 let necklaceSrc = '';
 let lastSnapshotDataURL = '';
 
-let faceMeshResults = null; // store the latest results here
+let faceMeshResults = null;
+let smoothedLandmarks = null;
 
 function loadImage(src) {
   return new Promise((resolve) => {
@@ -77,11 +78,25 @@ faceMesh.setOptions({
 });
 
 faceMesh.onResults((results) => {
-  faceMeshResults = results; // save latest
+  if (results.multiFaceLandmarks.length > 0) {
+    const landmarks = results.multiFaceLandmarks[0];
+    // Initialize smoothed landmarks if null
+    if (!smoothedLandmarks) {
+      smoothedLandmarks = landmarks.map(p => ({ x: p.x, y: p.y }));
+    } else {
+      // Smoothly interpolate to new positions
+      const smoothingFactor = 0.5; // adjust between 0 (slow) - 1 (instant)
+      for (let i = 0; i < landmarks.length; i++) {
+        smoothedLandmarks[i].x = smoothedLandmarks[i].x * (1 - smoothingFactor) + landmarks[i].x * smoothingFactor;
+        smoothedLandmarks[i].y = smoothedLandmarks[i].y * (1 - smoothingFactor) + landmarks[i].y * smoothingFactor;
+      }
+    }
+    faceMeshResults = results;
+  }
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-  if (results.multiFaceLandmarks.length > 0) {
-    drawJewelry(results.multiFaceLandmarks[0], canvasCtx);
+  if (smoothedLandmarks) {
+    drawJewelry(smoothedLandmarks, canvasCtx);
   }
 });
 
@@ -151,7 +166,7 @@ function drawJewelry(landmarks, ctx) {
 }
 
 function takeSnapshot() {
-  if (!faceMeshResults || faceMeshResults.multiFaceLandmarks.length === 0) {
+  if (!smoothedLandmarks) {
     alert("Face not detected. Please try again.");
     return;
   }
@@ -163,8 +178,7 @@ function takeSnapshot() {
   snapshotCanvas.height = videoElement.videoHeight;
   ctx.drawImage(videoElement, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
 
-  // draw jewelry on snapshot using the most recent landmarks
-  drawJewelry(faceMeshResults.multiFaceLandmarks[0], ctx);
+  drawJewelry(smoothedLandmarks, ctx);
 
   lastSnapshotDataURL = snapshotCanvas.toDataURL('image/png');
   document.getElementById('snapshot-preview').src = lastSnapshotDataURL;
