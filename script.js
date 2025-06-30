@@ -5,33 +5,31 @@ const canvasCtx = canvasElement.getContext('2d');
 let currentMode = null;
 let earringImg = null;
 let necklaceImg = null;
-let earringSrc = '';
-let necklaceSrc = '';
 let lastSnapshotDataURL = '';
 
 let smoothedLandmarks = null;
 
-function loadImage(src) {
-  return new Promise((resolve) => {
+// Preloaded images
+const earringImages = {};
+const necklaceImages = {};
+
+function preloadImages(type, startIndex, endIndex, targetDict, callback) {
+  let loaded = 0;
+  const total = endIndex - startIndex + 1;
+  for (let i = startIndex; i <= endIndex; i++) {
+    const filename = `${type}${i}.png`;
     const img = new Image();
-    img.src = src;
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-  });
-}
-
-function changeEarring(filename) {
-  earringSrc = `earrings/${filename}`;
-  loadImage(earringSrc).then(img => {
-    if (img) earringImg = img;
-  });
-}
-
-function changeNecklace(filename) {
-  necklaceSrc = `necklaces/${filename}`;
-  loadImage(necklaceSrc).then(img => {
-    if (img) necklaceImg = img;
-  });
+    img.src = `${type}s/${filename}`;
+    img.onload = () => {
+      targetDict[filename] = img;
+      loaded++;
+      if (loaded === total && callback) callback();
+    };
+    img.onerror = () => {
+      loaded++;
+      if (loaded === total && callback) callback();
+    };
+  }
 }
 
 function selectMode(mode) {
@@ -49,20 +47,24 @@ function insertJewelryOptions(type, containerId, startIndex, endIndex) {
   for (let i = startIndex; i <= endIndex; i++) {
     const filename = `${type}${i}.png`;
     const btn = document.createElement('button');
-    const img = document.createElement('img');
+    const img = new Image();
     img.src = `${type}s/${filename}`;
     btn.appendChild(img);
     btn.onclick = () => {
-      if (type === 'earring') changeEarring(filename);
-      if (type === 'necklace') changeNecklace(filename);
+      if (type === 'earring') earringImg = earringImages[filename];
+      if (type === 'necklace') necklaceImg = necklaceImages[filename];
     };
     container.appendChild(btn);
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  insertJewelryOptions('earring', 'earring-options', 1, 15);
-  insertJewelryOptions('necklace', 'necklace-options', 1, 24);
+  preloadImages('earring', 1, 15, earringImages, () => {
+    insertJewelryOptions('earring', 'earring-options', 1, 15);
+  });
+  preloadImages('necklace', 1, 24, necklaceImages, () => {
+    insertJewelryOptions('necklace', 'necklace-options', 1, 24);
+  });
 });
 
 const faceMesh = new FaceMesh({
@@ -85,14 +87,13 @@ faceMesh.onResults((results) => {
     if (!smoothedLandmarks) {
       smoothedLandmarks = landmarks.map(p => ({ x: p.x, y: p.y }));
     } else {
-      const smoothingFactor = 0.2; // lower is steadier
+      const smoothingFactor = 0.2;
       for (let i = 0; i < landmarks.length; i++) {
         smoothedLandmarks[i].x = smoothedLandmarks[i].x * (1 - smoothingFactor) + landmarks[i].x * smoothingFactor;
         smoothedLandmarks[i].y = smoothedLandmarks[i].y * (1 - smoothingFactor) + landmarks[i].y * smoothingFactor;
       }
     }
   }
-  // If no landmarks detected, keep previous smoothedLandmarks
   if (smoothedLandmarks) {
     drawJewelry(smoothedLandmarks, canvasCtx);
   }
